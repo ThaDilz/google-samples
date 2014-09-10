@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Firewall defense</title>
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link href='https://fonts.googleapis.com/css?family=Press+Start+2P' 
+          rel='stylesheet'>
+
+    <meta name="description" 
+          content="Firewall Defense: a simple web game illustrating how to 
+          integrate the Google Play game services web API." />
+  </head>
+
+  <body>
+    <div id="content">
+
+      <!--SIGN IN-->			
+      <div id="signin" style="float: right">
+        <div id="signinStatusContainer">
+          <div id="signinButtonContainer" class="visible">
+            <div id="signinButton"></div>
+          </div>
+
+          <a href="#" onclick="login.logout();" id="signedInStatus">Sign Out</a>
+        </div>
+      </div>
+      <!--SIGN IN-->			
+
+      <div class="screen" id="main_menu">
+        <div id="title">FIREWALL DEFENSE</div>
+        <button id="ach_button">ACHIEVEMENTS</button>
+        <button id="play_button">&lt;&lt; PLAY &gt;&gt;</button>
+        <button id="lb_button">HIGH SCORES</button>
+
+        <div>
+          <div id="how_to">
+            HOW TO PLAY<br/>
+            * Use ARROW KEYS to move<br />
+            * Use SPACE to fire.<br />
+            * Shoot malware: <img src="assets/img/enemy.png" /><br />
+            * Don't shoot data: <img src="assets/img/ally.png" /><br />
+            * Don't let malware reach your firewall.
+          </div>
+
+          <div id="podium">
+            TOP 3 SCORES<br /><br />
+            <img id="podium_img0" /> <span id="podium_span0"></span><br/>
+            <img id="podium_img1" /> <span id="podium_span1"></span><br/>
+            <img id="podium_img2" /> <span id="podium_span2"></span><br/>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="game_div">
+        <canvas id="game_canvas" width="1000" height="600"></canvas>
+      </div>
+
+      <div class="screen" id="result_div">
+        <div id="your_score_title">YOUR SCORE</div>
+        <div id="score">0000</div>
+        <button class="back_to_menu_button" id="result_ok_button">OK</button>
+      </div>
+
+      <div class="screen" id="wait_div">
+        <div id="wait_msg">LOADING...</div>				
+      </div>
+
+      <div class="screen" id="highscores_div">
+        <button class="back_to_menu_button up_button">&lt;&lt;</button>
+
+        <div id="highscores_your_box">YOU: 
+          <span id="your_high_score">00000</span>
+        </div>
+
+        <div class="highscores_box" id="highscores_social_box">
+          YOUR FRIENDS
+
+          <div class="highscores_content" id="highscores_social_content">
+            <img id="hssoc_img0" /> <span id="hssoc_span0"></span><br/>
+            <img id="hssoc_img1" /> <span id="hssoc_span1"></span><br/>
+            <img id="hssoc_img2" /> <span id="hssoc_span2"></span><br/>
+            <img id="hssoc_img3" /> <span id="hssoc_span3"></span><br/>
+            <img id="hssoc_img4" /> <span id="hssoc_span4"></span><br/>
+            <img id="hssoc_img5" /> <span id="hssoc_span5"></span><br/>
+            <img id="hssoc_img6" /> <span id="hssoc_span6"></span><br/>
+            <img id="hssoc_img7" /> <span id="hssoc_span7"></span><br/>
+            <img id="hssoc_img8" /> <span id="hssoc_span8"></span><br/>
+            <img id="hssoc_img9" /> <span id="hssoc_span9"></span><br/>
+
+            <span id="hssoc_empty">NO SCORES FOR NOW.<br/>
+              CHECK BACK LATER!
+            </span>
+          </div>
+        </div>
+
+        <div class="highscores_box" id="highscores_public_box">
+          ALL HIGH SCORES
+
+          <div class="highscores_content" id="highscores_public_content">
+            <img id="hspub_img0" /> <span id="hspub_span0"></span><br/>
+            <img id="hspub_img1" /> <span id="hspub_span1"></span><br/>
+            <img id="hspub_img2" /> <span id="hspub_span2"></span><br/>
+            <img id="hspub_img3" /> <span id="hspub_span3"></span><br/>
+            <img id="hspub_img4" /> <span id="hspub_span4"></span><br/>
+            <img id="hspub_img5" /> <span id="hspub_span5"></span><br/>
+            <img id="hspub_img6" /> <span id="hspub_span6"></span><br/>
+            <img id="hspub_img7" /> <span id="hspub_span7"></span><br/>
+            <img id="hspub_img8" /> <span id="hspub_span8"></span><br/>
+            <img id="hspub_img9" /> <span id="hspub_span9"></span><br/>
+
+            <span id="hspub_empty">NO SCORES FOR NOW.<br />CHECK BACK LATER!
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="ach_div">
+        <button class="back_to_menu_button up_button">&lt;&lt;</button>
+        <div id="ach_title">ACHIEVEMENTS</div>
+        <div id="ach_list"></div>
+      </div>
+
+      <div id="ach_toast"></div>
+    </div>
+  </body>
+
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js">
+  </script>
+
+  <script src="js/constants.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/gameservices.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/graphics.js"></script>
+  <script src="js/gamelogic.js"></script>
+  <script src="js/constants.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/login.js"></script>
+</html>

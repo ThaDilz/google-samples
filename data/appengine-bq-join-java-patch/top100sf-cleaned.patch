@@ -1,0 +1,284 @@
+diff -r e0fe2487edcd bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/BigqueryUtils.java
+--- a/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/BigqueryUtils.java	Wed Nov 23 13:13:33 2011 -0800
++++ b/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/BigqueryUtils.java	Tue Dec 06 11:36:45 2011 -0800
+@@ -24,6 +24,7 @@
+ 
+ import java.io.IOException;
+ import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.Callable;
+ import java.util.logging.Logger;
+ 
+@@ -73,8 +74,8 @@
+     }
+   }
+ 
+-  public void beginQuery() throws SampleDashboardException {
+-    final Job queryJob = makeJob(buildExampleQuery());
++  public void beginQuery(String query) throws SampleDashboardException {
++    final Job queryJob = makeJob(query);
+ 
+     job = tryToDo(new Callable<Job>() {
+       public Job call() throws Exception {
+@@ -164,24 +165,38 @@
+     queue.add(options);
+   }
+ 
+-  public static String buildExampleQuery() {
+-    String[] west = {"WA", "OR", "CA", "AK", "HI", "ID", "MT", "WY", "NV", "UT", "CO", "AZ", "NM"};
+-    String[] south = {"OK", "TX", "AR", "LA", "TN", "MS", "AL", "KY", "GA", "FL", "SC", "NC", "VA",
+-        "WV", "MD", "DC", "DE"};
+-    String[] midwest = {"ND", "SD", "NE", "KS", "MN", "IA", "MO", "WI", "IL", "IN", "MI", "OH"};
+-    String[] northeast = {"NY", "PA", "NJ", "CT", "RI", "MA", "VT", "NH", "ME"};
++  public String buildExampleQuery(String rank, String title, String author, String genre) {
++	String where_title = (null!=title && title.length()>0)?"         WHERE title CONTAINS \"" + title + "\"\n" : "\n";
++	String big_where_string;
++	String[] big_where = new String[3];
++	big_where[0] = (null!=author && author.length()>0)?"at.a.author CONTAINS \""+ author + "\"":null;
++	big_where[1] = (null!=rank && rank.length()>0)?"at.a.id = " + rank:null;
++	big_where[2] = (null!=genre && genre.length()>0)?"g.genre_list CONTAINS \"" + genre + "\"":null;
+ 
+-    Joiner joiner = Joiner.on("', '");
+-
+-    String query = "SELECT IF (state IN ('" + joiner.join(west) + "'), 'West', \n\t"
+-        + "IF (state IN ('" + joiner.join(south) + "'), 'South', \n\t"
+-        + "IF (state IN ('" + joiner.join(midwest) + "'), 'Midwest', \n\t"
+-        + "IF (state IN ('" + joiner.join(northeast) + "'), 'Northeast', 'None')))) "
+-        + "as region, \naverage_mother_age, \naverage_father_age, \nstate, \nyear \n"
+-        + "FROM (SELECT year, \n\t\tstate, \n\t\tSUM(mother_age)/COUNT(mother_age) as "
+-        + "average_mother_age, \n\t\tSUM(father_age)/COUNT(father_age) as average_father_age \n\t"
+-        + "FROM publicdata:samples.natality \n\tWHERE father_age < 99 \n\tGROUP BY year, state) \n"
+-        + "ORDER BY year, region;";
++	Joiner joiner = Joiner.on(" AND ").skipNulls();
++	big_where_string = joiner.join(big_where);
++	big_where_string = (null!=big_where_string && big_where_string.length()>0)?"WHERE "+big_where_string+" ":"\n";
++	
++	log.info("BigWhere="+big_where_string);
++	
++	String query =  "SELECT at.a.id as [RANK], at.t.title as [TITLE], at.a.author as [AUTHOR], g.genre_list as [GENRES]\n"
++                   +"FROM\n"
++                   + "    (SELECT * \n"
++                   + "     FROM \n"
++                   + "        (SELECT * \n"
++                   + "         FROM \n"
++                   + "           tables.npr_title \n"
++                   +  where_title
++                   + "        ) AS t \n"
++                   + "        JOIN \n"
++                   + "           tables.npr_author AS a \n"
++                   + "        ON a.id = t.id \n"
++                   + "    ) AS at \n"
++                   + "JOIN \n"
++                   + "    tables.npr_genre AS g \n"
++                   + "ON at.a.id = g.id \n"
++                   + big_where_string
++                   + "ORDER BY [RANK]; \n";
+ 
+     return query;
+   }
+diff -r e0fe2487edcd bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DataServlet.java
+--- a/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DataServlet.java	Wed Nov 23 13:13:33 2011 -0800
++++ b/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DataServlet.java	Tue Dec 06 11:36:45 2011 -0800
+@@ -22,13 +22,11 @@
+  */
+ public class DataServlet extends HttpServlet {
+ 
+-  // It's important that the first column be a string and the second a number.
+-  // Also, it is expected that these are the same length.
+   private final String[] labels = new String[]
+-      {"State", "Year", "Average Mother Age", "Average Father Age", "U.S. Census Region"};
++      {"Rank", "Title", "Author", "Genres"};
+   private final String[] properties = new String[]
+-      {"state", "year", "average_mother_age", "average_father_age", "region"};
+-  private final String[] types = new String[] {"string", "number", "number", "number", "string"};
++      {"RANK", "TITLE", "AUTHOR", "GENRES"};
++  private final String[] types = new String[] {"number", "string", "string", "string"};
+ 
+   /**
+    * Attempts to retrieve results for the logged-in user.  If the datastore contains
+@@ -53,6 +51,7 @@
+     jsonWriter.name("failed").value(datastoreUtils.hasUserQueryFailed());
+     jsonWriter.name("message").value(datastoreUtils.getUserMessage());
+     jsonWriter.name("lastRun").value(datastoreUtils.getUserLastRunMessage());
++    jsonWriter.name("query").value(datastoreUtils.getUserQuery());
+ 
+     jsonWriter.endObject().close();
+   }
+diff -r e0fe2487edcd bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DatastoreUtils.java
+--- a/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DatastoreUtils.java	Wed Nov 23 13:13:33 2011 -0800
++++ b/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/DatastoreUtils.java	Tue Dec 06 11:36:45 2011 -0800
+@@ -66,6 +66,15 @@
+     userEntity.setProperty("message", message);
+     service.put(userEntity);
+   }
++  
++  /**
++   * Updates the user entity with the current query string, creating it if necessary.
++   */
++  public void putUserQuery(String query) {
++    createUserIfNull();
++    userEntity.setProperty("query", query);
++    service.put(userEntity);
++  }
+ 
+   /**
+    * Updates the user entity with the current time, creating it if necessary.
+@@ -80,6 +89,11 @@
+     return getUserEntityProperty("jobStatus");
+   }
+ 
++  public String getUserQuery() {
++	    return getUserEntityProperty("query");
++  }
++
++  
+   public Boolean hasUserQueryFailed() {
+     return (FAILED).equalsIgnoreCase(getUserJobStatus());
+   }
+diff -r e0fe2487edcd bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/MainServlet.java
+--- a/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/MainServlet.java	Wed Nov 23 13:13:33 2011 -0800
++++ b/bigquery-appengine-sample/src/main/java/com/google/api/client/sample/bigquery/appengine/dashboard/MainServlet.java	Tue Dec 06 11:36:45 2011 -0800
+@@ -27,7 +27,7 @@
+     String userId = getUserId();
+     DatastoreUtils datastoreUtils = new DatastoreUtils(userId);
+ 
+-    printPage(response, datastoreUtils.getUserLastRunMessage());
++    printPage(response, datastoreUtils.getUserLastRunMessage(), datastoreUtils.getUserQuery());
+ 
+     // Try to get data if this user is unknown, or if their last try failed.
+     if (!datastoreUtils.hasUserEntity() || datastoreUtils.hasUserQueryFailed()) {
+@@ -42,13 +42,18 @@
+ 
+     String message;
+     String status = DatastoreUtils.FAILED;
++    String query;
+ 
+     try {
+       // Begin a query.  A task is begun to wait for the results of the query,
+       // and when the query finishes, that task (see TaskServlet) takes care
+       // of copying the results to the datastore.
+       BigqueryUtils bigqueryUtils = new BigqueryUtils(userId, getHttpTransport(), getJsonFactory());
+-      bigqueryUtils.beginQuery();
++      query = bigqueryUtils.buildExampleQuery(request.getParameter("rank"), request.getParameter("title"), 
++    		  request.getParameter("author"), request.getParameter("genre"));
++      
++      datastoreUtils.putUserQuery(query);
++      bigqueryUtils.beginQuery(query);
+       message = "Began running your query";
+       status = bigqueryUtils.getJobStatus();
+ 
+@@ -76,27 +81,45 @@
+     runQuery(request, response, userId, datastoreUtils);
+   }
+ 
+-  private void printPage(HttpServletResponse response, String lastRun)
++  private void printPage(HttpServletResponse response, String lastRun, String query)
+       throws IOException {
+-    response.setContentType("text/html");
++	  
++	String intro = "<h1>Top 100 Science Fiction and Fantasy Books According to NPR: Java Edition!</h1>\n"
++		+ "<p>This is a sample application to demonstrate\n"
++		+  "<a href=\"http://code.google.com/apis/bigquery/\">Google's BigQuery</a>\n"
++		+ "and the new\n"
++		+ "<a href=\"http://code.google.com/apis/bigquery/docs/query-reference.html#joins\">\n"
++        + "JOIN</a> capability in SQL-like queries.\n"
++        + "</p>\n"
++        + "<p>The selection of books and ranking come from\n"
++        + "<a href=\"http://www.npr.org/2011/08/11/139085843/your-picks-top-100-science-fiction-fantasy-books\">\n"
++        + "npr books</a> and the genres come from\n"
++        + "<a href=\"http://www.freebase.com/view/book\">Freebase books</a>, associated\n"
++        + "using <a href=\"http://code.google.com/p/google-refine/\">Google Refine</a>\n"
++        + "and its link to Freebase.\n"
++        + "</p>\n"
++        + "<p>There is an explicit AND between the fields.</p>\n"
++        + "<p>You can see the full list by just clicking on \"Run query\"</p><hr/>\n";
++	  
++	response.setContentType("text/html");
+     response.setCharacterEncoding("UTF-8");
+     response.getWriter().print("<!doctype html><html><head>"
+-        + "<script type=\"text/javascript\" src=\"https://www.google.com/jsapi\"></script>"
+-        + "<script type=\"text/javascript\" src=\"drawGraph.js\"></script>"
+-        + "<title>Bigquery sample dashboard</title></head><body><div style=\"width:800px;\">"
+-        + "<input type=\"button\" id=\"refresh\" value=\"Run query\" style=\"float:right;\"/>"
+-        + "Query last run: <span id=\"lastRun\">" + lastRun + "</span></div><br/>"
++    	+ "<script type=\"text/javascript\" src=\"https://www.google.com/jsapi\"></script>"
++    	+ "<script type=\"text/javascript\" src=\"drawGraph.js\"></script>"
++        + "<title>Bigquery sample dashboard</title></head><body>"
++        + intro
++        + "<form method=\"post\" id=\"bookform\"><table width=\"800\">\n"
++        + "<tr><th>Rank</th><th>Title</th><th>Author</th><th>Genre</th><th>&nbsp;</th></tr>"
++        + "<tr><td><input type=\"text\" name=\"rank\"/></td>"
++        + "    <td><input type=\"text\" name=\"title\"/></td>"
++        + "    <td><input type=\"text\" name=\"author\"/></td>"
++        + "    <td><input type=\"text\" name=\"genre\"/></td>"
++        + "    <td><input type=\"submit\" id=\"refresh\" value=\"Run query\"/></td></tr></table>"
++        + "Query last run: <span id=\"lastRun\">" + lastRun + "</span></form><br/>"
+         + "<div id=\"message\">Checking the datastore for cached results...</div>"
+-        + "<div id=\"visualization\"></div><br/><a href=\"#\" id=\"toggle\">"
+-        + "Show query that generated these results</a><br/><div id=\"query\">"
+-        + htmlify(BigqueryUtils.buildExampleQuery())
++        + "<div id=\"visualization\"></div><br/>"
++        + "<h2>Query that generated these results:</h2><br/><div id=\"lastQuery\">"
++        + "<pre>" + query + "</pre>"
+         + "</div></body></html>");
+   }
+-
+-  private String htmlify(String s) {
+-    s = s.replace("\n", "<br/>");
+-    s = s.replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;");
+-    s = s.replace(" ", "&nbsp;");
+-    return s;
+-  }
+ }
+diff -r e0fe2487edcd bigquery-appengine-sample/src/main/webapp/drawGraph.js
+--- a/bigquery-appengine-sample/src/main/webapp/drawGraph.js	Wed Nov 23 13:13:33 2011 -0800
++++ b/bigquery-appengine-sample/src/main/webapp/drawGraph.js	Tue Dec 06 11:36:45 2011 -0800
+@@ -11,22 +11,17 @@
+  */
+ 
+ // Load the motion chart package from the Visualization API and JQuery.
+-google.load('visualization', '1', {packages: ['motionchart']});
++google.load('visualization', '1', {packages: ['table']});
+ google.load('jquery', '1.6.4');
+ 
+ // Set a callback to run when the Google Visualization API is loaded.
+ google.setOnLoadCallback(doOnLoad);
+ 
+ function doOnLoad() {
+-  $('#query').hide();
+-  $('#toggle').click(function() {
+-    $('#query').toggle();
+-  });
+-
+   $('#refresh').click(function() {
+     $('#refresh').attr('disabled', 'disabled');
+     $('#message').html('Requesting that the query be rerun...');
+-    $.post('/', function() {
++    $.post('/', $('#bookform').serialize(), function() {
+       setTimeout(postCheck, 2000);
+     });
+   });
+@@ -37,10 +32,11 @@
+ function postCheck() {
+   $.post('/data', function(dataObject) {
+     $('#message').html(dataObject.message);
+-
++    
+     if (!dataObject.data && !dataObject.failed) {
+       setTimeout(postCheck, 2000);
+     } else {
++      $('#lastQuery').html("<pre>" + dataObject.query + "</pre>");
+       $('#refresh').removeAttr('disabled');
+       if (dataObject.data) {
+         $('#lastRun').html(dataObject.lastRun);
+@@ -52,8 +48,8 @@
+         viz.css('height', height);
+ 
+         var dataTable = new google.visualization.DataTable(dataObject.data);
+-        var motionchart = new google.visualization.MotionChart(viz[0]);
+-        motionchart.draw(dataTable, {width: width, height: height});
++        var books = new google.visualization.Table(viz[0]);
++        books.draw(dataTable, {width: width, height: height});
+       }
+     }
+   }, 'json');
